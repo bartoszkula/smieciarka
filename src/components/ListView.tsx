@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, SectionList } from 'react-native';
-import { upcomingFrom, WASTE_TYPES, PickupDay } from '../data/schedule';
+import { upcomingFrom, WASTE_TYPES, PickupDay, ScheduleData } from '../data/schedule';
 import { daysBetween, relativeLabel, MONTHS_PL, MONTHS_PL_GEN } from '../utils/format';
 import { WasteDot } from './WasteDot';
 import { NextPickupCard } from './NextPickupCard';
@@ -11,8 +11,8 @@ interface Section {
   data: PickupDay[];
 }
 
-export function ListView({ today }: { today: Date }) {
-  const upcoming = useMemo(() => upcomingFrom(today), [today]);
+export function ListView({ schedule, today }: { schedule: ScheduleData; today: Date }) {
+  const upcoming = useMemo(() => upcomingFrom(schedule, today), [schedule, today]);
   const next = upcoming[0] ?? null;
 
   const sections = useMemo<Section[]>(() => {

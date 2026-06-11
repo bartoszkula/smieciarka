@@ -45,3 +45,8 @@ yarn-error.*
 
 # Vercel
 .vercel
+
+# APK is built locally and committed to public/ so Vercel serves it at /smieciarka.apk
+
+# local helper
+_install_ndk.bat

@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { PICKUP_DAYS, WASTE_TYPES, ADDRESS, PickupDay } from './data/schedule';
+import { WASTE_TYPES, PickupDay, ScheduleData } from './data/schedule';
 
 function pad(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
@@ -31,17 +31,17 @@ function fold(line: string): string {
   return parts.join('\r\n');
 }
 
-export function buildICS(): string {
+export function buildICS(schedule: ScheduleData): string {
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Smieci Bydgoszcz//Harmonogram 2026//PL',
+    `PRODID:-//Smieci Bydgoszcz//Harmonogram ${schedule.year}//PL`,
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    'X-WR-CALNAME:Wywóz śmieci — Drzycimska 47',
+    'X-WR-CALNAME:Wywóz śmieci',
   ];
 
-  for (const day of PICKUP_DAYS) {
+  for (const day of schedule.days) {
     const start = day.dateObj;
     const end = new Date(start);
     end.setDate(end.getDate() + 1); // wydarzenie całodniowe
@@ -52,7 +52,7 @@ export function buildICS(): string {
     lines.push(`DTSTART;VALUE=DATE:${icsDate(start)}`);
     lines.push(`DTEND;VALUE=DATE:${icsDate(end)}`);
     lines.push(fold(`SUMMARY:${summary(day)}`));
-    lines.push(fold(`LOCATION:${ADDRESS}`));
+    lines.push(fold(`LOCATION:${schedule.address}`));
     lines.push(fold('DESCRIPTION:Wystaw pojemniki przed dom do 6:00 rano w dniu wywozu.'));
     lines.push('BEGIN:VALARM');
     lines.push('ACTION:DISPLAY');
@@ -68,15 +68,16 @@ export function buildICS(): string {
 }
 
 /** Eksportuje kalendarz: web → pobranie pliku, natywnie → arkusz udostępniania. */
-export async function exportICS(): Promise<void> {
-  const content = buildICS();
+export async function exportICS(schedule: ScheduleData): Promise<void> {
+  const content = buildICS(schedule);
+  const fileName = `wywoz-smieci-${schedule.year}.ics`;
 
   if (Platform.OS === 'web') {
     const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'wywoz-smieci-2026.ics';
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -84,7 +85,7 @@ export async function exportICS(): Promise<void> {
     return;
   }
 
-  const uri = `${FileSystem.cacheDirectory}wywoz-smieci-2026.ics`;
+  const uri = `${FileSystem.cacheDirectory}${fileName}`;
   await FileSystem.writeAsStringAsync(uri, content, {
     encoding: FileSystem.EncodingType.UTF8,
   });

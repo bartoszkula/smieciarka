@@ -1,9 +1,9 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Pressable, PanResponder, Animated, ScrollView,
 } from 'react-native';
 import {
-  EVENTS_BY_DATE, SCHEDULE_YEAR, WASTE_TYPES, WasteTypeId, toISO,
+  ScheduleData, WASTE_TYPES, WasteTypeId, toISO,
 } from '../data/schedule';
 import { WEEKDAYS_SHORT, mondayIndex, monthTitle, weekdayDate } from '../utils/format';
 import { WasteDot } from './WasteDot';
@@ -18,61 +18,93 @@ interface Cell {
   types: WasteTypeId[];
 }
 
-function buildGrid(month0: number, todayISO: string): Cell[] {
-  const first = new Date(SCHEDULE_YEAR, month0, 1);
-  const lead = mondayIndex(first.getDay()); // ile dni z poprzedniego miesiąca
-  const daysInMonth = new Date(SCHEDULE_YEAR, month0 + 1, 0).getDate();
+function buildGrid(year: number, month0: number, byDate: Map<string, WasteTypeId[]>, todayISO: string): Cell[] {
+  const first = new Date(year, month0, 1);
+  const lead = mondayIndex(first.getDay());
+  const daysInMonth = new Date(year, month0 + 1, 0).getDate();
   const cells: Cell[] = [];
-
-  // dni z poprzedniego miesiąca (wypełniacze)
-  const prevDays = new Date(SCHEDULE_YEAR, month0, 0).getDate();
+  const prevDays = new Date(year, month0, 0).getDate();
   for (let i = lead - 1; i >= 0; i--) {
-    const d = prevDays - i;
-    cells.push({ day: d, iso: '', inMonth: false, isToday: false, types: [] });
+    cells.push({ day: prevDays - i, iso: '', inMonth: false, isToday: false, types: [] });
   }
-  // bieżący miesiąc
   for (let d = 1; d <= daysInMonth; d++) {
-    const iso = toISO(SCHEDULE_YEAR, month0, d);
-    cells.push({
-      day: d,
-      iso,
-      inMonth: true,
-      isToday: iso === todayISO,
-      types: EVENTS_BY_DATE.get(iso) ?? [],
-    });
+    const iso = toISO(year, month0, d);
+    cells.push({ day: d, iso, inMonth: true, isToday: iso === todayISO, types: byDate.get(iso) ?? [] });
   }
-  // dopełnienie do pełnych tygodni
   while (cells.length % 7 !== 0) {
     cells.push({ day: 0, iso: '', inMonth: false, isToday: false, types: [] });
   }
   return cells;
 }
 
-export function CalendarView({ today }: { today: Date }) {
+function DayCell({
+  cell, weekend, selected, onPress,
+}: {
+  cell: Cell; weekend: boolean; selected: boolean; onPress: () => void;
+}) {
+  const hasPickup = cell.types.length > 0;
+  return (
+    <Pressable style={styles.cell} disabled={!cell.inMonth} onPress={onPress}>
+      <View
+        style={[
+          styles.square,
+          cell.isToday && styles.todayRing,
+          selected && !cell.isToday && styles.selRing,
+        ]}
+      >
+        {hasPickup && (
+          <View style={styles.stripes}>
+            {cell.types.map((t) => (
+              <View key={t} style={{ flex: 1, backgroundColor: WASTE_TYPES[t].color }} />
+            ))}
+          </View>
+        )}
+        <Text
+          style={[
+            styles.dayNum,
+            !cell.inMonth && styles.dayOut,
+            weekend && cell.inMonth && !hasPickup && styles.dayWeekend,
+            hasPickup && styles.dayPickup,
+            cell.isToday && !hasPickup && styles.dayTodayPlain,
+          ]}
+        >
+          {cell.inMonth ? cell.day : ''}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+export function CalendarView({ schedule, today }: { schedule: ScheduleData; today: Date }) {
+  const { year, byDate } = schedule;
   const todayISO = toISO(today.getFullYear(), today.getMonth(), today.getDate());
-  const initialMonth = today.getFullYear() === SCHEDULE_YEAR ? today.getMonth() : 0;
+  const initialMonth = today.getFullYear() === year ? today.getMonth() : 0;
   const [month, setMonth] = useState(initialMonth);
   const [selected, setSelected] = useState<string | null>(
-    today.getFullYear() === SCHEDULE_YEAR ? todayISO : null,
+    today.getFullYear() === year ? todayISO : null,
   );
 
   const slide = useRef(new Animated.Value(0)).current;
 
-  const go = (dir: -1 | 1) => {
-    const next = month + dir;
-    if (next < 0 || next > 11) return;
-    setSelected(null);
-    Animated.sequence([
-      Animated.timing(slide, { toValue: dir * -18, duration: 90, useNativeDriver: true }),
-      Animated.timing(slide, { toValue: 0, duration: 120, useNativeDriver: true }),
-    ]).start();
-    setMonth(next);
-  };
+  // Stabilna funkcja — używa funkcyjnej aktualizacji stanu, więc PanResponder
+  // (tworzony raz) nigdy nie odczytuje przestarzałego `month`.
+  const go = useCallback((dir: -1 | 1) => {
+    setMonth((prev) => {
+      const next = prev + dir;
+      if (next < 0 || next > 11) return prev;
+      setSelected(null);
+      Animated.sequence([
+        Animated.timing(slide, { toValue: dir * -20, duration: 90, useNativeDriver: true }),
+        Animated.timing(slide, { toValue: 0, duration: 130, useNativeDriver: true }),
+      ]).start();
+      return next;
+    });
+  }, [slide]);
 
   const pan = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) =>
-        Math.abs(g.dx) > 18 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        Math.abs(g.dx) > 16 && Math.abs(g.dx) > Math.abs(g.dy) * 1.4,
       onPanResponderRelease: (_e, g) => {
         if (g.dx <= -40) go(1);
         else if (g.dx >= 40) go(-1);
@@ -80,14 +112,14 @@ export function CalendarView({ today }: { today: Date }) {
     }),
   ).current;
 
-  const grid = useMemo(() => buildGrid(month, todayISO), [month, todayISO]);
+  const grid = useMemo(() => buildGrid(year, month, byDate, todayISO), [year, month, byDate, todayISO]);
   const rows = useMemo(() => {
     const r: Cell[][] = [];
     for (let i = 0; i < grid.length; i += 7) r.push(grid.slice(i, i + 7));
     return r;
   }, [grid]);
 
-  const selectedTypes = selected ? EVENTS_BY_DATE.get(selected) ?? [] : [];
+  const selectedTypes = selected ? byDate.get(selected) ?? [] : [];
   const selectedDate = useMemo(() => {
     if (!selected) return null;
     const [y, m, d] = selected.split('-').map(Number);
@@ -96,21 +128,18 @@ export function CalendarView({ today }: { today: Date }) {
 
   return (
     <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-      {/* nagłówek miesiąca + strzałki */}
       <View style={styles.header}>
         <Pressable
-          onPress={() => go(-1)}
-          disabled={month === 0}
-          style={({ pressed }) => [styles.arrow, (month === 0) && styles.arrowOff, pressed && styles.pressed]}
+          onPress={() => go(-1)} disabled={month === 0}
+          style={({ pressed }) => [styles.arrow, month === 0 && styles.arrowOff, pressed && styles.pressed]}
           hitSlop={10}
         >
           <Text style={styles.arrowTxt}>‹</Text>
         </Pressable>
-        <Text style={styles.title}>{monthTitle(month, SCHEDULE_YEAR)}</Text>
+        <Text style={styles.title}>{monthTitle(month, year)}</Text>
         <Pressable
-          onPress={() => go(1)}
-          disabled={month === 11}
-          style={({ pressed }) => [styles.arrow, (month === 11) && styles.arrowOff, pressed && styles.pressed]}
+          onPress={() => go(1)} disabled={month === 11}
+          style={({ pressed }) => [styles.arrow, month === 11 && styles.arrowOff, pressed && styles.pressed]}
           hitSlop={10}
         >
           <Text style={styles.arrowTxt}>›</Text>
@@ -118,53 +147,28 @@ export function CalendarView({ today }: { today: Date }) {
       </View>
 
       <Animated.View style={[styles.card, { transform: [{ translateX: slide }] }]} {...pan.panHandlers}>
-        {/* dni tygodnia */}
         <View style={styles.weekRow}>
           {WEEKDAYS_SHORT.map((w, i) => (
-            <Text key={w} style={[styles.weekday, i >= 5 && styles.weekend]}>{w}</Text>
+            <Text key={w} style={[styles.weekday, i >= 5 && styles.weekendHead]}>{w}</Text>
           ))}
         </View>
-
-        {/* siatka */}
         {rows.map((row, ri) => (
           <View key={ri} style={styles.row}>
-            {row.map((c, ci) => {
-              const isWeekend = ci >= 5;
-              const isSel = c.inMonth && c.iso === selected;
-              return (
-                <Pressable
-                  key={ci}
-                  style={styles.cell}
-                  disabled={!c.inMonth}
-                  onPress={() => setSelected(c.iso)}
-                >
-                  <View style={[styles.dayWrap, c.isToday && styles.todayWrap, isSel && !c.isToday && styles.selWrap]}>
-                    <Text
-                      style={[
-                        styles.dayNum,
-                        !c.inMonth && styles.dayOut,
-                        isWeekend && c.inMonth && styles.dayWeekend,
-                        c.isToday && styles.dayToday,
-                      ]}
-                    >
-                      {c.inMonth ? c.day : ''}
-                    </Text>
-                  </View>
-                  <View style={styles.dots}>
-                    {c.types.slice(0, 3).map((t) => (
-                      <WasteDot key={t} type={t} size={7} />
-                    ))}
-                  </View>
-                </Pressable>
-              );
-            })}
+            {row.map((c, ci) => (
+              <DayCell
+                key={ci}
+                cell={c}
+                weekend={ci >= 5}
+                selected={c.inMonth && c.iso === selected}
+                onPress={() => setSelected(c.iso)}
+              />
+            ))}
           </View>
         ))}
       </Animated.View>
 
       <Text style={styles.hint}>Przesuń w lewo / prawo, aby zmienić miesiąc</Text>
 
-      {/* szczegóły wybranego dnia */}
       {selected && (
         <View style={styles.detail}>
           {selectedTypes.length > 0 ? (
@@ -192,6 +196,8 @@ export function CalendarView({ today }: { today: Date }) {
   );
 }
 
+const SQUARE = 38;
+
 const styles = StyleSheet.create({
   scroll: { padding: 14, paddingBottom: 28 },
   header: {
@@ -202,37 +208,36 @@ const styles = StyleSheet.create({
   arrow: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: theme.card,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 5, shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
   arrowOff: { opacity: 0.35 },
   pressed: { opacity: 0.6 },
   arrowTxt: { fontSize: 26, lineHeight: 30, color: theme.text, fontWeight: '600' },
   card: {
     backgroundColor: theme.card, borderRadius: 18, padding: 8,
-    shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
   weekRow: { flexDirection: 'row', marginBottom: 4, paddingTop: 4 },
   weekday: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: theme.textMuted },
-  weekend: { color: '#C0504D' },
+  weekendHead: { color: '#C0504D' },
   row: { flexDirection: 'row' },
-  cell: { flex: 1, alignItems: 'center', paddingVertical: 4, minHeight: 46 },
-  dayWrap: {
-    width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+  cell: { flex: 1, alignItems: 'center', paddingVertical: 4 },
+  square: {
+    width: SQUARE, height: SQUARE, borderRadius: 5, overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent',
   },
-  todayWrap: { backgroundColor: theme.todayBg, borderWidth: 1.5, borderColor: theme.todayRing },
-  selWrap: { backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.border },
+  stripes: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' },
+  todayRing: { borderWidth: 2, borderColor: theme.text },
+  selRing: { borderWidth: 1.5, borderColor: theme.textMuted },
   dayNum: { fontSize: 15, color: theme.text },
   dayOut: { color: 'transparent' },
   dayWeekend: { color: '#C0504D' },
-  dayToday: { fontWeight: '800', color: theme.primary },
-  dots: { flexDirection: 'row', gap: 3, marginTop: 3, height: 8, alignItems: 'center' },
+  dayPickup: { color: '#FFFFFF', fontWeight: '800' },
+  dayTodayPlain: { fontWeight: '800', color: theme.primary },
   hint: { textAlign: 'center', color: theme.textFaint, fontSize: 12, marginTop: 10 },
   detail: {
     backgroundColor: theme.card, borderRadius: 14, padding: 14, marginTop: 12,
-    shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
   detailDate: { fontSize: 13, fontWeight: '700', color: theme.textMuted, marginBottom: 8, textTransform: 'capitalize' },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 3 },

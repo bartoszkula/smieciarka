@@ -1,6 +1,8 @@
-// Harmonogram odbioru odpadów komunalnych — Bydgoszcz, okręg 5,
-// ul. Drzycimska 47 (nieruchomość mieszkalna), rok 2026.
-// Źródło: docs/harmonogram.pdf (Pronatura / Czysta Bydgoszcz).
+// Model danych harmonogramu wywozu odpadów.
+// Źródłem prawdy jest API miejskie (patrz source.ts) zwracające JSON.
+// Bundlujemy snapshot 2026 (schedule.2026.json) jako dane offline/domyślne.
+
+import bundled2026 from './schedule.2026.json';
 
 export type WasteTypeId =
   | 'zmieszane'
@@ -18,11 +20,10 @@ export interface WasteType {
   emoji: string;
 }
 
-// Kolory zgodnie z wytycznymi:
-// zmieszane - grafitowy, papier - niebieski, plastik - żółty,
+// Kolory: zmieszane - SZARY, papier - niebieski, plastik - żółty,
 // szkło - zielony, bio - brązowy, wielkogabarytowe - różowy.
 export const WASTE_TYPES: Record<WasteTypeId, WasteType> = {
-  zmieszane: { id: 'zmieszane', label: 'Odpady zmieszane', short: 'Zmieszane', color: '#37474F', emoji: '🗑️' },
+  zmieszane: { id: 'zmieszane', label: 'Odpady zmieszane', short: 'Zmieszane', color: '#808080', emoji: '🗑️' },
   papier: { id: 'papier', label: 'Papier', short: 'Papier', color: '#1565C0', emoji: '📦' },
   plastik: { id: 'plastik', label: 'Plastik i metale', short: 'Plastik', color: '#F9A825', emoji: '♻️' },
   szklo: { id: 'szklo', label: 'Szkło', short: 'Szkło', color: '#2E7D32', emoji: '🍾' },
@@ -31,56 +32,56 @@ export const WASTE_TYPES: Record<WasteTypeId, WasteType> = {
 };
 
 export const WASTE_TYPE_ORDER: WasteTypeId[] = [
-  'zmieszane',
-  'papier',
-  'plastik',
-  'szklo',
-  'bio',
-  'gabaryty',
+  'zmieszane', 'papier', 'plastik', 'szklo', 'bio', 'gabaryty',
 ];
 
-export const SCHEDULE_YEAR = 2026;
+// --- Kształt odpowiedzi API ---
+export interface ApiSchedule {
+  id: string;
+  year: number;
+  street: string;
+  buildingNumber: string;
+  city: string;
+  area: string;
+  buildingType?: string;
+  trashSchedule: { month: string; schedule: { type: string; days: string[] }[] }[];
+}
 
-// Dni odbioru w poszczególnych miesiącach (indeks miesiąca 0-11 → dni).
-// Dane przepisane 1:1 z tabeli w harmonogramie.
-const RAW: Record<WasteTypeId, Record<number, number[]>> = {
-  // odpady zmieszane (grafitowy)
-  zmieszane: {
-    0: [3, 16, 30], 1: [13, 27], 2: [13, 27], 3: [10, 24], 4: [8, 22], 5: [5, 19],
-    6: [3, 17, 31], 7: [14, 28], 8: [11, 25], 9: [9, 23], 10: [6, 20], 11: [4, 18],
-  },
-  // papier (niebieski)
-  papier: {
-    0: [28], 1: [25], 2: [25], 3: [22], 4: [20], 5: [17],
-    6: [15], 7: [12], 8: [9], 9: [7], 10: [4], 11: [2, 30],
-  },
-  // plastik i metale (żółty)
-  plastik: {
-    0: [28], 1: [25], 2: [25], 3: [22], 4: [20], 5: [17],
-    6: [15], 7: [12], 8: [9], 9: [7], 10: [4], 11: [2, 30],
-  },
-  // szkło (zielony)
-  szklo: {
-    0: [28], 1: [25], 2: [25], 3: [22], 4: [20], 5: [17],
-    6: [15], 7: [12], 8: [9], 9: [7], 10: [4], 11: [2, 30],
-  },
-  // odpady bio (brązowy)
-  bio: {
-    0: [9, 22], 1: [5], 2: [5, 19], 3: [2, 16, 30], 4: [14, 28], 5: [11, 25],
-    6: [9, 23], 7: [6, 20], 8: [3, 17], 9: [1, 15, 29], 10: [13, 26], 11: [10],
-  },
-  // odpady wielkogabarytowe (różowy)
-  gabaryty: {
-    0: [22], 3: [16], 6: [23], 9: [15],
-  },
+const API_MONTHS = [
+  'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
+  'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień',
+];
+
+const API_TYPE_MAP: Record<string, WasteTypeId> = {
+  'odpady zmieszane': 'zmieszane',
+  'papier': 'papier',
+  'plastik': 'plastik',
+  'szkło': 'szklo',
+  'odpady bio': 'bio',
+  'odpady wielkogabarytowe': 'gabaryty',
 };
 
+// --- Struktury używane przez UI ---
 export interface PickupEvent {
-  /** Data w formacie YYYY-MM-DD (lokalnie). */
-  date: string;
-  month: number; // 0-11
+  date: string; // YYYY-MM-DD
+  month: number;
   day: number;
   typeId: WasteTypeId;
+}
+
+export interface PickupDay {
+  date: string;
+  dateObj: Date;
+  types: WasteTypeId[];
+}
+
+export interface ScheduleData {
+  year: number;
+  address: string;
+  area: string;
+  events: PickupEvent[];
+  byDate: Map<string, WasteTypeId[]>;
+  days: PickupDay[];
 }
 
 function pad(n: number): string {
@@ -91,59 +92,58 @@ export function toISO(year: number, month0: number, day: number): string {
   return `${year}-${pad(month0 + 1)}-${pad(day)}`;
 }
 
-/** Płaska, posortowana po dacie lista wszystkich wywozów w roku. */
-export const EVENTS: PickupEvent[] = (() => {
-  const out: PickupEvent[] = [];
-  (Object.keys(RAW) as WasteTypeId[]).forEach((typeId) => {
-    const byMonth = RAW[typeId];
-    Object.keys(byMonth).forEach((mStr) => {
-      const month = Number(mStr);
-      byMonth[month].forEach((day) => {
-        out.push({ date: toISO(SCHEDULE_YEAR, month, day), month, day, typeId });
-      });
-    });
-  });
-  out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  return out;
-})();
-
-/** Mapa "YYYY-MM-DD" → lista frakcji tego dnia (w ustalonej kolejności). */
-export const EVENTS_BY_DATE: Map<string, WasteTypeId[]> = (() => {
-  const m = new Map<string, WasteTypeId[]>();
-  for (const e of EVENTS) {
-    const arr = m.get(e.date) ?? [];
-    arr.push(e.typeId);
-    m.set(e.date, arr);
-  }
-  // utrzymaj kolejność frakcji
-  for (const [k, v] of m) {
-    v.sort((a, b) => WASTE_TYPE_ORDER.indexOf(a) - WASTE_TYPE_ORDER.indexOf(b));
-    m.set(k, v);
-  }
-  return m;
-})();
-
-/** Jeden wpis listy: data + wszystkie frakcje tego dnia. */
-export interface PickupDay {
-  date: string;
-  dateObj: Date;
-  types: WasteTypeId[];
+function titleCase(s: string): string {
+  return s.toLowerCase().replace(/(^|\s|-)\p{L}/gu, (m) => m.toUpperCase());
 }
 
-export const PICKUP_DAYS: PickupDay[] = (() => {
+/** Przekształca surową odpowiedź API w gotowy model dla UI. */
+export function buildSchedule(api: ApiSchedule): ScheduleData {
+  const year = api.year;
+  const events: PickupEvent[] = [];
+
+  for (const m of api.trashSchedule ?? []) {
+    const month = API_MONTHS.indexOf((m.month ?? '').toLowerCase().trim());
+    if (month < 0) continue;
+    for (const s of m.schedule ?? []) {
+      const typeId = API_TYPE_MAP[(s.type ?? '').toLowerCase().trim()];
+      if (!typeId) continue;
+      for (const dStr of s.days ?? []) {
+        const day = Number(dStr);
+        if (!day) continue;
+        events.push({ date: toISO(year, month, day), month, day, typeId });
+      }
+    }
+  }
+  events.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  const byDate = new Map<string, WasteTypeId[]>();
+  for (const e of events) {
+    const arr = byDate.get(e.date) ?? [];
+    arr.push(e.typeId);
+    byDate.set(e.date, arr);
+  }
+  for (const [k, v] of byDate) {
+    v.sort((a, b) => WASTE_TYPE_ORDER.indexOf(a) - WASTE_TYPE_ORDER.indexOf(b));
+    byDate.set(k, v);
+  }
+
   const days: PickupDay[] = [];
-  for (const [date, types] of EVENTS_BY_DATE) {
-    const [y, m, d] = date.split('-').map(Number);
-    days.push({ date, dateObj: new Date(y, m - 1, d), types });
+  for (const [date, types] of byDate) {
+    const [y, mo, d] = date.split('-').map(Number);
+    days.push({ date, dateObj: new Date(y, mo - 1, d), types });
   }
   days.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
-  return days;
-})();
 
-/** Zwraca dni wywozu od podanej daty (włącznie) w przód. */
-export function upcomingFrom(from: Date): PickupDay[] {
-  const startISO = toISO(from.getFullYear(), from.getMonth(), from.getDate());
-  return PICKUP_DAYS.filter((d) => d.date >= startISO);
+  const address = `${titleCase(api.street)} ${api.buildingNumber}, ${titleCase(api.city)} (okręg ${api.area})`;
+
+  return { year, address, area: String(api.area), events, byDate, days };
 }
 
-export const ADDRESS = 'Bydgoszcz, ul. Drzycimska 47 (okręg 5)';
+/** Dni wywozu od podanej daty (włącznie) w przód. */
+export function upcomingFrom(data: ScheduleData, from: Date): PickupDay[] {
+  const startISO = toISO(from.getFullYear(), from.getMonth(), from.getDate());
+  return data.days.filter((d) => d.date >= startISO);
+}
+
+// Domyślny, wbudowany harmonogram (offline).
+export const DEFAULT_SCHEDULE: ScheduleData = buildSchedule(bundled2026 as ApiSchedule);

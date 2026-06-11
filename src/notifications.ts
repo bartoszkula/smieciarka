@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import {
-  PICKUP_DAYS, WASTE_TYPES, WasteTypeId, PickupDay,
+  WASTE_TYPES, WasteTypeId, PickupDay,
 } from './data/schedule';
 import { MONTHS_PL_GEN } from './utils/format';
 
@@ -71,7 +71,7 @@ export interface ScheduleResult {
  * Kasuje wcześniejsze i planuje powiadomienia dla wszystkich przyszłych
  * dni wywozu (jedno powiadomienie na dzień, o 18:00 dnia poprzedniego).
  */
-export async function rescheduleAll(now: Date): Promise<ScheduleResult> {
+export async function rescheduleAll(now: Date, days: PickupDay[]): Promise<ScheduleResult> {
   if (!notificationsSupported) return { scheduled: 0, granted: false };
   const granted = await requestPermissions();
   if (!granted) return { scheduled: 0, granted: false };
@@ -79,7 +79,7 @@ export async function rescheduleAll(now: Date): Promise<ScheduleResult> {
   await Notifications.cancelAllScheduledNotificationsAsync();
 
   let scheduled = 0;
-  for (const day of PICKUP_DAYS) {
+  for (const day of days) {
     const trigger = new Date(day.dateObj);
     trigger.setDate(trigger.getDate() - 1);
     trigger.setHours(NOTIFY_HOUR, NOTIFY_MINUTE, 0, 0);
@@ -105,11 +105,11 @@ export async function rescheduleAll(now: Date): Promise<ScheduleResult> {
 }
 
 /** Powiadomienie testowe — pojawi się za kilka sekund. */
-export async function sendTestNotification(): Promise<boolean> {
+export async function sendTestNotification(days: PickupDay[]): Promise<boolean> {
   if (!notificationsSupported) return false;
   const granted = await requestPermissions();
   if (!granted) return false;
-  const sample = PICKUP_DAYS[0];
+  const sample = days[0];
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '🗑️ Test powiadomienia',

@@ -1,17 +1,23 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, SafeAreaView, Platform, ScrollView, Alert,
+  View, Text, StyleSheet, Pressable, SafeAreaView, Platform, ScrollView, Alert, Image,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { CalendarView } from './src/components/CalendarView';
 import { ListView } from './src/components/ListView';
 import { Legend } from './src/components/Legend';
-import { ADDRESS } from './src/data/schedule';
+import { DownloadApkBanner, DownloadApkButton } from './src/components/DownloadApk';
+import { ScheduleProvider, useSchedule } from './src/data/ScheduleContext';
+import { ScheduleData } from './src/data/schedule';
 import { theme } from './src/theme';
+import { WEB_MAX_WIDTH } from './src/config';
 import {
   rescheduleAll, sendTestNotification, notificationsSupported, countScheduled,
 } from './src/notifications';
 import { exportICS } from './src/ics';
+
+const LOGO = require('./assets/smieciarka.png');
 
 type Tab = 'kalendarz' | 'lista' | 'wiecej';
 
@@ -22,84 +28,103 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 ];
 
 export default function App() {
+  return (
+    <ScheduleProvider>
+      <AppInner />
+    </ScheduleProvider>
+  );
+}
+
+function AppInner() {
+  const { schedule, status, error, outdated } = useSchedule();
   const [tab, setTab] = useState<Tab>('kalendarz');
   const [today] = useState(() => new Date());
   const [notifStatus, setNotifStatus] = useState<string>(
     notificationsSupported ? 'Planowanie powiadomień…' : 'Powiadomienia dostępne tylko w apce na telefonie.',
   );
 
+  // Przeplanuj powiadomienia za każdym razem, gdy zmieni się harmonogram (np. po odświeżeniu na nowy rok).
   useEffect(() => {
     if (!notificationsSupported) return;
     let active = true;
     (async () => {
-      const res = await rescheduleAll(new Date());
+      const res = await rescheduleAll(new Date(), schedule.days);
       if (!active) return;
-      if (!res.granted) {
-        setNotifStatus('Powiadomienia wyłączone — włącz je w ustawieniach systemu.');
-      } else {
-        setNotifStatus(`Zaplanowano ${res.scheduled} przypomnień (18:00 dzień przed wywozem).`);
-      }
+      if (!res.granted) setNotifStatus('Powiadomienia wyłączone — włącz je w ustawieniach systemu.');
+      else setNotifStatus(`Zaplanowano ${res.scheduled} przypomnień (18:00 dzień przed wywozem).`);
     })();
     return () => { active = false; };
-  }, []);
+  }, [schedule]);
 
   const onExport = useCallback(async () => {
     try {
-      await exportICS();
-    } catch (e) {
+      await exportICS(schedule);
+    } catch {
       const msg = 'Nie udało się wyeksportować kalendarza.';
       if (Platform.OS === 'web') alert(msg);
       else Alert.alert('Błąd', msg);
     }
-  }, []);
+  }, [schedule]);
 
   const onTest = useCallback(async () => {
-    const ok = await sendTestNotification();
+    const ok = await sendTestNotification(schedule.days);
     if (!ok) Alert.alert('Powiadomienia', 'Brak zgody na powiadomienia lub funkcja niedostępna na tej platformie.');
-  }, []);
+  }, [schedule]);
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
-      <View style={styles.appHeader}>
-        <Text style={styles.appTitle}>Śmieciarka jedzie!</Text>
-        <Text style={styles.appAddr}>{ADDRESS}</Text>
-      </View>
+      <View style={styles.column}>
+        <View style={styles.appHeader}>
+          <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.appTitle}>Śmieciarka jedzie!</Text>
+            <Text style={styles.appAddr}>{schedule.address}</Text>
+          </View>
+        </View>
 
-      <View style={styles.body}>
-        {tab === 'kalendarz' && <CalendarView today={today} />}
-        {tab === 'lista' && <ListView today={today} />}
-        {tab === 'wiecej' && (
-          <MoreScreen
-            notifStatus={notifStatus}
-            onExport={onExport}
-            onTest={onTest}
-          />
+        {/* Banner błędu odświeżenia harmonogramu na nowy rok */}
+        {status === 'error' && outdated && error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorTxt}>⚠️ {error}</Text>
+          </View>
         )}
-      </View>
 
-      <View style={styles.tabbar}>
-        {TABS.map((t) => {
-          const active = t.id === tab;
-          return (
-            <Pressable key={t.id} style={styles.tab} onPress={() => setTab(t.id)}>
-              <Text style={[styles.tabIcon, active && styles.tabIconActive]}>{t.icon}</Text>
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t.label}</Text>
-            </Pressable>
-          );
-        })}
+        <DownloadApkBanner />
+
+        <View style={styles.body}>
+          {tab === 'kalendarz' && <CalendarView schedule={schedule} today={today} />}
+          {tab === 'lista' && <ListView schedule={schedule} today={today} />}
+          {tab === 'wiecej' && (
+            <MoreScreen schedule={schedule} notifStatus={notifStatus} onExport={onExport} onTest={onTest} />
+          )}
+        </View>
+
+        <View style={styles.tabbar}>
+          {TABS.map((t) => {
+            const active = t.id === tab;
+            return (
+              <Pressable key={t.id} style={styles.tab} onPress={() => setTab(t.id)}>
+                <Text style={[styles.tabIcon, active && styles.tabIconActive]}>{t.icon}</Text>
+                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     </SafeAreaView>
   );
 }
 
 function MoreScreen({
-  notifStatus, onExport, onTest,
+  schedule, notifStatus, onExport, onTest,
 }: {
+  schedule: ScheduleData;
   notifStatus: string;
   onExport: () => void;
   onTest: () => void;
 }) {
+  const { status, error, refresh } = useSchedule();
   const [scheduled, setScheduled] = useState<number | null>(null);
   useEffect(() => {
     countScheduled().then(setScheduled).catch(() => setScheduled(null));
@@ -107,6 +132,25 @@ function MoreScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.more} showsVerticalScrollIndicator={false}>
+      <Text style={styles.sectionTitle}>Harmonogram</Text>
+      <View style={styles.panel}>
+        <Text style={styles.panelText}>Rok: <Text style={styles.bold}>{schedule.year}</Text></Text>
+        <Text style={styles.panelSub}>
+          Po Nowym Roku aplikacja sama pobierze nowy harmonogram z serwisu miejskiego dla tego adresu.
+          Jeśli się nie uda — zobaczysz błąd u góry.
+        </Text>
+        {status === 'error' && error && <Text style={styles.errInline}>⚠️ {error}</Text>}
+        <Pressable
+          style={({ pressed }) => [styles.btnOutline, pressed && styles.pressed]}
+          onPress={refresh}
+          disabled={status === 'refreshing'}
+        >
+          {status === 'refreshing'
+            ? <ActivityIndicator color={theme.primary} />
+            : <Text style={styles.btnOutlineTxt}>Sprawdź aktualizację harmonogramu</Text>}
+        </Pressable>
+      </View>
+
       <Text style={styles.sectionTitle}>Powiadomienia</Text>
       <View style={styles.panel}>
         <Text style={styles.panelText}>{notifStatus}</Text>
@@ -120,10 +164,12 @@ function MoreScreen({
         )}
       </View>
 
+      <DownloadApkButton />
+
       <Text style={styles.sectionTitle}>Kalendarz systemowy</Text>
       <View style={styles.panel}>
         <Text style={styles.panelText}>
-          Wyeksportuj wszystkie wywozy 2026 do pliku .ics (Kalendarz Google / systemowy). Każde wydarzenie ma
+          Wyeksportuj wszystkie wywozy do pliku .ics (Kalendarz Google / systemowy). Każde wydarzenie ma
           przypomnienie o 18:00 dnia poprzedniego.
         </Text>
         <Pressable style={({ pressed }) => [styles.btn, pressed && styles.pressed]} onPress={onExport}>
@@ -136,16 +182,23 @@ function MoreScreen({
         <Legend />
       </View>
 
-      <Text style={styles.footer}>Dane: harmonogram Pronatura / Czysta Bydgoszcz, okręg 5, 2026.</Text>
+      <Text style={styles.footer}>Dane: serwis miejski Pronatura / Czysta Bydgoszcz.</Text>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.bg },
-  appHeader: { paddingHorizontal: 18, paddingTop: Platform.OS === 'android' ? 14 : 8, paddingBottom: 8 },
-  appTitle: { fontSize: 26, fontWeight: '800', color: theme.text },
-  appAddr: { fontSize: 13, color: theme.textMuted, marginTop: 2 },
+  safe: { flex: 1, backgroundColor: theme.bg, alignItems: 'center' },
+  column: { flex: 1, width: '100%', maxWidth: WEB_MAX_WIDTH },
+  appHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 18, paddingTop: Platform.OS === 'android' ? 14 : 8, paddingBottom: 8,
+  },
+  logo: { width: 44, height: 44, borderRadius: 10 },
+  appTitle: { fontSize: 24, fontWeight: '800', color: theme.text },
+  appAddr: { fontSize: 12.5, color: theme.textMuted, marginTop: 2 },
+  errorBanner: { backgroundColor: '#FDECEA', borderColor: '#F5C6CB', borderWidth: 1, marginHorizontal: 14, padding: 12, borderRadius: 12 },
+  errorTxt: { color: '#B71C1C', fontSize: 13, lineHeight: 18 },
   body: { flex: 1 },
   tabbar: {
     flexDirection: 'row', backgroundColor: theme.card, borderTopWidth: 1, borderTopColor: theme.border,
@@ -163,10 +216,12 @@ const styles = StyleSheet.create({
     shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
   panelText: { fontSize: 14, color: theme.text, lineHeight: 20 },
-  panelSub: { fontSize: 13, color: theme.textMuted },
+  panelSub: { fontSize: 13, color: theme.textMuted, lineHeight: 18 },
+  bold: { fontWeight: '800' },
+  errInline: { fontSize: 13, color: '#B71C1C', lineHeight: 18 },
   btn: { backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   btnTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  btnOutline: { borderWidth: 1.5, borderColor: theme.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  btnOutline: { borderWidth: 1.5, borderColor: theme.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center', minHeight: 46, justifyContent: 'center' },
   btnOutlineTxt: { color: theme.primary, fontWeight: '700', fontSize: 14 },
   pressed: { opacity: 0.7 },
   footer: { fontSize: 11.5, color: theme.textFaint, textAlign: 'center', marginTop: 24, lineHeight: 16 },
