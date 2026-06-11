@@ -166,7 +166,8 @@ function MoreScreen({
       <View style={styles.panel}>
         <Text style={styles.panelText}>{schedule.address}</Text>
         <Text style={styles.panelSub}>
-          Harmonogram pobierany jest dla tego adresu z serwisu miejskiego. Możesz go zmienić — domyślnie {address.street} {address.number}.
+          Operator: <Text style={styles.bold}>{schedule.operator}</Text>. Obsługiwani: ProNatura, Remondis, Corimp (Bydgoszcz).
+          Domyślnie {address.street} {address.number}.
         </Text>
         <Pressable
           style={({ pressed }) => [styles.btn, pressed && styles.pressed]}

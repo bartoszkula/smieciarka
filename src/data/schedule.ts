@@ -37,29 +37,34 @@ export const WASTE_TYPE_ORDER: WasteTypeId[] = [
 
 // --- Kształt odpowiedzi API ---
 export interface ApiSchedule {
-  id: string;
+  id?: string;
   year: number;
   street: string;
   buildingNumber: string;
   city: string;
-  area: string;
+  area?: string;
+  operator?: string;
   buildingType?: string;
   trashSchedule: { month: string; schedule: { type: string; days: string[] }[] }[];
 }
 
-const API_MONTHS = [
+export const API_MONTHS = [
   'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
   'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień',
 ];
 
-const API_TYPE_MAP: Record<string, WasteTypeId> = {
-  'odpady zmieszane': 'zmieszane',
-  'papier': 'papier',
-  'plastik': 'plastik',
-  'szkło': 'szklo',
-  'odpady bio': 'bio',
-  'odpady wielkogabarytowe': 'gabaryty',
-};
+// Tolerancyjne rozpoznawanie frakcji po słowie kluczowym — różni operatorzy
+// nazywają je inaczej ("Metale i tworzywa sztuczne", "Odpady Bio" itd.).
+export function typeIdFromLabel(label: string): WasteTypeId | null {
+  const s = (label ?? '').toLowerCase();
+  if (s.includes('zmieszan')) return 'zmieszane';
+  if (s.includes('papier')) return 'papier';
+  if (s.includes('tworzyw') || s.includes('plastik') || s.includes('metal')) return 'plastik';
+  if (s.includes('szk')) return 'szklo';
+  if (s.includes('bio')) return 'bio';
+  if (s.includes('gabaryt')) return 'gabaryty';
+  return null;
+}
 
 // --- Struktury używane przez UI ---
 export interface PickupEvent {
@@ -79,6 +84,7 @@ export interface ScheduleData {
   year: number;
   address: string;
   area: string;
+  operator: string;
   events: PickupEvent[];
   byDate: Map<string, WasteTypeId[]>;
   days: PickupDay[];
@@ -105,7 +111,7 @@ export function buildSchedule(api: ApiSchedule): ScheduleData {
     const month = API_MONTHS.indexOf((m.month ?? '').toLowerCase().trim());
     if (month < 0) continue;
     for (const s of m.schedule ?? []) {
-      const typeId = API_TYPE_MAP[(s.type ?? '').toLowerCase().trim()];
+      const typeId = typeIdFromLabel(s.type ?? '');
       if (!typeId) continue;
       for (const dStr of s.days ?? []) {
         const day = Number(dStr);
@@ -134,9 +140,11 @@ export function buildSchedule(api: ApiSchedule): ScheduleData {
   }
   days.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
-  const address = `${titleCase(api.street)} ${api.buildingNumber}, ${titleCase(api.city)} (okręg ${api.area})`;
+  const area = api.area ? String(api.area) : '';
+  const okreg = area ? ` (okręg ${area})` : '';
+  const address = `${titleCase(api.street)} ${api.buildingNumber}, ${titleCase(api.city)}${okreg}`;
 
-  return { year, address, area: String(api.area), events, byDate, days };
+  return { year, address, area, operator: api.operator ?? 'ProNatura', events, byDate, days };
 }
 
 /** Dni wywozu od podanej daty (włącznie) w przód. */
