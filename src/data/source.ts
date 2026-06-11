@@ -1,18 +1,13 @@
 // Klient API miejskiego harmonogramu odpadów (Bydgoszcz / Pronatura).
 // Ta sama usługa, z której korzysta https://d1jdxd94cgtram.cloudfront.net/
-// Pobiera dane jako JSON (pewniejsze niż parsowanie PDF) — wykorzystywane
-// do automatycznego odświeżenia harmonogramu na nowy rok.
+// Pobiera dane jako JSON (pewniejsze niż parsowanie PDF).
 
 import { ApiSchedule } from './schedule';
 
 const API_BASE = 'https://zs5cv4ng75.execute-api.eu-central-1.amazonaws.com/prod';
 
-// Adres zakodowany na stałe (tak jak wpisujemy na stronie miejskiej).
-export const TARGET_STREET = 'DRZYCIMSKA';
-export const TARGET_NUMBER = '47';
-
-interface Street { id: string; street: string }
-interface AddressPoint { id: string; buildingNumber: string; buildingType?: string; name?: string | null }
+export interface Street { id: string; street: string }
+export interface AddressPoint { id: string; buildingNumber: string; buildingType?: string; name?: string | null }
 
 const REQUEST_TIMEOUT = 15000;
 
@@ -29,39 +24,51 @@ async function getJSON<T>(path: string): Promise<T> {
 }
 
 function normalize(s: string): string {
-  return s.trim().toUpperCase();
+  return (s ?? '').trim().toUpperCase();
 }
 
-/**
- * Pobiera aktualny harmonogram dla zakodowanego adresu (Drzycimska 47).
- * Rzuca wyjątek z czytelnym komunikatem przy każdym niepowodzeniu.
- */
-export async function fetchSchedule(): Promise<ApiSchedule> {
-  // 1) znajdź ulicę
-  const streets = await getJSON<Street[]>('/streets');
-  const street = streets.find((s) => normalize(s.street) === normalize(TARGET_STREET));
-  if (!street) throw new Error(`Nie znaleziono ulicy „${TARGET_STREET}" w wykazie.`);
+// Pełna lista ulic bywa duża — cache'ujemy ją w pamięci na czas sesji.
+let streetsCache: Street[] | null = null;
 
-  // 2) znajdź punkt adresowy (numer budynku)
-  const points = await getJSON<AddressPoint[]>(`/address-points/${street.id}`);
-  const point = points.find((p) => normalize(p.buildingNumber) === normalize(TARGET_NUMBER));
-  if (!point) throw new Error(`Nie znaleziono numeru „${TARGET_NUMBER}" przy ul. ${TARGET_STREET}.`);
+async function allStreets(): Promise<Street[]> {
+  if (!streetsCache) {
+    streetsCache = await getJSON<Street[]>('/streets');
+  }
+  return streetsCache;
+}
 
-  // 3) pobierz harmonogram (JSON)
+/** Podpowiedzi ulic zawierających podany tekst (do autouzupełniania). */
+export async function searchStreets(query: string, limit = 12): Promise<Street[]> {
+  const q = normalize(query);
+  const list = await allStreets();
+  if (!q) return [];
+  const starts = list.filter((s) => normalize(s.street).startsWith(q));
+  const contains = list.filter((s) => !normalize(s.street).startsWith(q) && normalize(s.street).includes(q));
+  return [...starts, ...contains].slice(0, limit);
+}
+
+/** Numery budynków (punkty adresowe) dla danej ulicy. */
+export async function getNumbers(streetId: string): Promise<AddressPoint[]> {
+  return getJSON<AddressPoint[]>(`/address-points/${streetId}`);
+}
+
+async function resolveStreet(street: string): Promise<Street> {
+  const list = await allStreets();
+  const exact = list.find((s) => normalize(s.street) === normalize(street));
+  if (exact) return exact;
+  // delikatne dopasowanie, gdyby brakło dokładnego (np. literówka w wielkości liter)
+  const partial = list.find((s) => normalize(s.street).startsWith(normalize(street)));
+  if (partial) return partial;
+  throw new Error(`Nie znaleziono ulicy „${street}".`);
+}
+
+/** Pobiera harmonogram (JSON) dla wskazanej ulicy i numeru. Rzuca czytelny błąd. */
+export async function fetchScheduleFor(street: string, number: string): Promise<ApiSchedule> {
+  const s = await resolveStreet(street);
+  const points = await getNumbers(s.id);
+  const point = points.find((p) => normalize(p.buildingNumber) === normalize(number));
+  if (!point) throw new Error(`Nie znaleziono numeru „${number}" przy ul. ${s.street}.`);
   const schedule = await getJSON<ApiSchedule>(`/trash-schedule/${point.id}`);
-  if (!schedule?.trashSchedule?.length) throw new Error('API zwróciło pusty harmonogram.');
+  if (!schedule?.trashSchedule?.length) throw new Error('API zwróciło pusty harmonogram dla tego adresu.');
   return schedule;
-}
-
-/** Link do PDF-a z harmonogramem (do podejrzenia / pobrania przez użytkownika). */
-export async function fetchPdfUrl(): Promise<string> {
-  const streets = await getJSON<Street[]>('/streets');
-  const street = streets.find((s) => normalize(s.street) === normalize(TARGET_STREET));
-  if (!street) throw new Error(`Nie znaleziono ulicy „${TARGET_STREET}".`);
-  const points = await getJSON<AddressPoint[]>(`/address-points/${street.id}`);
-  const point = points.find((p) => normalize(p.buildingNumber) === normalize(TARGET_NUMBER));
-  if (!point) throw new Error(`Nie znaleziono numeru „${TARGET_NUMBER}".`);
-  const r = await getJSON<{ url: string }>(`/trash-schedule/${point.id}/pdf`);
-  if (!r?.url) throw new Error('Brak adresu PDF w odpowiedzi API.');
-  return r.url;
 }

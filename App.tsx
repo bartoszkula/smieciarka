@@ -13,6 +13,7 @@ import { CalendarView } from './src/components/CalendarView';
 import { ListView } from './src/components/ListView';
 import { Legend } from './src/components/Legend';
 import { DownloadApkBanner, DownloadApkButton } from './src/components/DownloadApk';
+import { AddressPicker } from './src/components/AddressPicker';
 import { ScheduleProvider, useSchedule } from './src/data/ScheduleContext';
 import { ScheduleData } from './src/data/schedule';
 import { theme } from './src/theme';
@@ -151,14 +152,30 @@ function MoreScreen({
   onExport: () => void;
   onTest: () => void;
 }) {
-  const { status, error, refresh } = useSchedule();
+  const { status, error, refresh, changeAddress, address } = useSchedule();
   const [scheduled, setScheduled] = useState<number | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   useEffect(() => {
     countScheduled().then(setScheduled).catch(() => setScheduled(null));
   }, [notifStatus]);
 
   return (
+    <>
     <ScrollView contentContainerStyle={styles.more} showsVerticalScrollIndicator={false}>
+      <Text style={styles.sectionTitle}>Adres</Text>
+      <View style={styles.panel}>
+        <Text style={styles.panelText}>{schedule.address}</Text>
+        <Text style={styles.panelSub}>
+          Harmonogram pobierany jest dla tego adresu z serwisu miejskiego. Możesz go zmienić — domyślnie {address.street} {address.number}.
+        </Text>
+        <Pressable
+          style={({ pressed }) => [styles.btn, pressed && styles.pressed]}
+          onPress={() => setPickerOpen(true)}
+        >
+          <Text style={styles.btnTxt}>Zmień adres</Text>
+        </Pressable>
+      </View>
+
       <Text style={styles.sectionTitle}>Harmonogram</Text>
       <View style={styles.panel}>
         <Text style={styles.panelText}>Rok: <Text style={styles.bold}>{schedule.year}</Text></Text>
@@ -219,6 +236,8 @@ function MoreScreen({
 
       <Text style={styles.footer}>Dane: serwis miejski Pronatura / Czysta Bydgoszcz.</Text>
     </ScrollView>
+    <AddressPicker visible={pickerOpen} onClose={() => setPickerOpen(false)} changeAddress={changeAddress} />
+    </>
   );
 }
 
