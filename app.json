@@ -1,25 +1,39 @@
 {
   "expo": {
-    "name": "smieci",
+    "name": "Śmieciarka jedzie!",
     "slug": "smieci",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/smieciarka.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "icon": "./assets/smieciarka.png"
     },
     "android": {
+      "package": "pl.bydgoszcz.wywozsmieci",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#F7D85D",
+        "foregroundImage": "./assets/smieciarka.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/smieciarka.png"
+    },
+    "plugins": [
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/smieciarka.png",
+          "color": "#2E7D32"
+        }
+      ]
+    ]
   }
 }
