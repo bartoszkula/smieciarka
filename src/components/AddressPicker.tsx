@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   Modal, View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { searchStreets, getNumbers, Street, AddressPoint } from '../data/source';
 import { theme } from '../theme';
@@ -77,8 +78,11 @@ export function AddressPicker({
     : numbers;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.sheet}>
           <View style={styles.handleBar} />
           <Text style={styles.title}>Zmień adres</Text>
@@ -141,7 +145,7 @@ export function AddressPicker({
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
