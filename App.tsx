@@ -1,9 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Pressable, SafeAreaView, Platform, ScrollView, Alert, Image,
-  ActivityIndicator,
+  ActivityIndicator, StatusBar as RNStatusBar,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+
+// Górny zapas: poniżej paska statusu / obiektywu aparatu na Androidzie.
+const TOP_PAD = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) + 18 : 8;
+// Dolny zapas: ponad paskiem nawigacji Androida (gesty/przyciski).
+const BOTTOM_PAD = Platform.OS === 'android' ? 30 : Platform.OS === 'ios' ? 20 : 10;
 import { CalendarView } from './src/components/CalendarView';
 import { ListView } from './src/components/ListView';
 import { Legend } from './src/components/Legend';
@@ -192,7 +197,7 @@ const styles = StyleSheet.create({
   column: { flex: 1, width: '100%', maxWidth: WEB_MAX_WIDTH },
   appHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 18, paddingTop: Platform.OS === 'android' ? 14 : 8, paddingBottom: 8,
+    paddingHorizontal: 18, paddingTop: TOP_PAD, paddingBottom: 8,
   },
   logo: { width: 44, height: 44, borderRadius: 10 },
   appTitle: { fontSize: 24, fontWeight: '800', color: theme.text },
@@ -202,7 +207,7 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   tabbar: {
     flexDirection: 'row', backgroundColor: theme.card, borderTopWidth: 1, borderTopColor: theme.border,
-    paddingBottom: Platform.OS === 'ios' ? 18 : 8, paddingTop: 8,
+    paddingBottom: BOTTOM_PAD, paddingTop: 10,
   },
   tab: { flex: 1, alignItems: 'center', gap: 2 },
   tabIcon: { fontSize: 20, opacity: 0.45 },
