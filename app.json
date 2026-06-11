@@ -6,6 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/smieciarka.png",
     "userInterfaceStyle": "light",
+    "runtimeVersion": { "policy": "appVersion" },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "supportsTablet": true,
       "icon": "./assets/smieciarka.png"

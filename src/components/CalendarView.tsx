@@ -43,34 +43,37 @@ function DayCell({
   cell: Cell; weekend: boolean; selected: boolean; onPress: () => void;
 }) {
   const hasPickup = cell.types.length > 0;
-  return (
-    <Pressable style={styles.cell} disabled={!cell.inMonth} onPress={onPress}>
-      <View
+  const square = (
+    <View
+      style={[
+        styles.square,
+        cell.isToday && styles.todayBorder,
+        selected && !cell.isToday && styles.selRing,
+      ]}
+    >
+      {hasPickup && (
+        <View style={styles.stripes}>
+          {cell.types.map((t) => (
+            <View key={t} style={{ flex: 1, backgroundColor: WASTE_TYPES[t].color }} />
+          ))}
+        </View>
+      )}
+      <Text
         style={[
-          styles.square,
-          cell.isToday && styles.todayRing,
-          selected && !cell.isToday && styles.selRing,
+          styles.dayNum,
+          !cell.inMonth && styles.dayOut,
+          weekend && cell.inMonth && !hasPickup && styles.dayWeekend,
+          hasPickup && styles.dayPickup,
+          cell.isToday && !hasPickup && styles.dayTodayPlain,
         ]}
       >
-        {hasPickup && (
-          <View style={styles.stripes}>
-            {cell.types.map((t) => (
-              <View key={t} style={{ flex: 1, backgroundColor: WASTE_TYPES[t].color }} />
-            ))}
-          </View>
-        )}
-        <Text
-          style={[
-            styles.dayNum,
-            !cell.inMonth && styles.dayOut,
-            weekend && cell.inMonth && !hasPickup && styles.dayWeekend,
-            hasPickup && styles.dayPickup,
-            cell.isToday && !hasPickup && styles.dayTodayPlain,
-          ]}
-        >
-          {cell.inMonth ? cell.day : ''}
-        </Text>
-      </View>
+        {cell.inMonth ? cell.day : ''}
+      </Text>
+    </View>
+  );
+  return (
+    <Pressable style={styles.cell} disabled={!cell.inMonth} onPress={onPress}>
+      {cell.isToday ? <View style={styles.todayHalo}>{square}</View> : square}
     </Pressable>
   );
 }
@@ -227,7 +230,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent',
   },
   stripes: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' },
-  todayRing: { borderWidth: 2, borderColor: theme.text },
+  todayHalo: {
+    padding: 3, borderRadius: 9, backgroundColor: 'rgba(255,202,40,0.32)',
+    shadowColor: '#F9A825', shadowOpacity: 0.95, shadowRadius: 7, shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  },
+  todayBorder: { borderWidth: 2, borderColor: '#F9A825' },
   selRing: { borderWidth: 1.5, borderColor: theme.textMuted },
   dayNum: { fontSize: 15, color: theme.text },
   dayOut: { color: 'transparent' },
