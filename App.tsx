@@ -21,8 +21,11 @@ import {
   rescheduleAll, sendTestNotification, notificationsSupported, countScheduled,
 } from './src/notifications';
 import { exportICS } from './src/ics';
+import { requestIgnoreBatteryOptimizations, batteryRequestSupported } from './src/battery';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LOGO = require('./assets/smieciarka.png');
+const BATT_ASKED_KEY = 'battopt:asked:v1';
 
 type Tab = 'kalendarz' | 'lista' | 'wiecej';
 
@@ -55,8 +58,27 @@ function AppInner() {
     (async () => {
       const res = await rescheduleAll(new Date(), schedule.days);
       if (!active) return;
-      if (!res.granted) setNotifStatus('Powiadomienia wyłączone — włącz je w ustawieniach systemu.');
-      else setNotifStatus(`Zaplanowano ${res.scheduled} przypomnień (18:00 dzień przed wywozem).`);
+      if (!res.granted) {
+        setNotifStatus('Powiadomienia wyłączone — włącz je w ustawieniach systemu.');
+        return;
+      }
+      setNotifStatus(`Zaplanowano ${res.scheduled} przypomnień (18:00 dzień przed wywozem).`);
+
+      // Jednorazowy monit o wyłączenie optymalizacji baterii (pewność powiadomień).
+      if (batteryRequestSupported) {
+        const asked = await AsyncStorage.getItem(BATT_ASKED_KEY);
+        if (!asked && active) {
+          await AsyncStorage.setItem(BATT_ASKED_KEY, '1');
+          Alert.alert(
+            'Pewność powiadomień',
+            'Aby przypomnienia o wywozie na pewno przychodziły o 18:00 (nawet przy zamkniętej apce), pozwól aplikacji działać bez ograniczeń baterii. Otworzyć systemowe ustawienie?',
+            [
+              { text: 'Później', style: 'cancel' },
+              { text: 'Otwórz', onPress: () => { requestIgnoreBatteryOptimizations(); } },
+            ],
+          );
+        }
+      }
     })();
     return () => { active = false; };
   }, [schedule]);
@@ -165,6 +187,14 @@ function MoreScreen({
         {notificationsSupported && (
           <Pressable style={({ pressed }) => [styles.btnOutline, pressed && styles.pressed]} onPress={onTest}>
             <Text style={styles.btnOutlineTxt}>Wyślij powiadomienie testowe</Text>
+          </Pressable>
+        )}
+        {batteryRequestSupported && (
+          <Pressable
+            style={({ pressed }) => [styles.btnOutline, pressed && styles.pressed]}
+            onPress={() => requestIgnoreBatteryOptimizations()}
+          >
+            <Text style={styles.btnOutlineTxt}>Wyłącz oszczędzanie baterii dla apki</Text>
           </Pressable>
         )}
       </View>
