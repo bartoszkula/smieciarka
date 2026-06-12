@@ -5,10 +5,11 @@ import {
 import {
   ScheduleData, WASTE_TYPES, WasteTypeId, toISO,
 } from '../data/schedule';
-import { WEEKDAYS_SHORT, mondayIndex, monthTitle, weekdayDate } from '../utils/format';
+import { mondayIndex, monthTitle, weekdayDate, weekdaysShort } from '../utils/format';
 import { WasteDot } from './WasteDot';
 import { Legend } from './Legend';
-import { theme } from '../theme';
+import { usePrefs } from '../prefs';
+import { Theme } from '../theme';
 
 interface Cell {
   day: number;
@@ -38,9 +39,9 @@ function buildGrid(year: number, month0: number, byDate: Map<string, WasteTypeId
 }
 
 function DayCell({
-  cell, weekend, selected, onPress,
+  cell, weekend, selected, onPress, styles,
 }: {
-  cell: Cell; weekend: boolean; selected: boolean; onPress: () => void;
+  cell: Cell; weekend: boolean; selected: boolean; onPress: () => void; styles: ReturnType<typeof makeStyles>;
 }) {
   const hasPickup = cell.types.length > 0;
   const square = (
@@ -64,7 +65,6 @@ function DayCell({
           !cell.inMonth && styles.dayOut,
           weekend && cell.inMonth && !hasPickup && styles.dayWeekend,
           hasPickup && styles.dayPickup,
-          cell.isToday && !hasPickup && styles.dayTodayPlain,
         ]}
       >
         {cell.inMonth ? cell.day : ''}
@@ -79,6 +79,10 @@ function DayCell({
 }
 
 export function CalendarView({ schedule, today }: { schedule: ScheduleData; today: Date }) {
+  const { palette, lang, t } = usePrefs();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const weekdaysShortNames = useMemo(() => weekdaysShort(lang), [lang]);
+
   const { year, byDate } = schedule;
   const todayISO = toISO(today.getFullYear(), today.getMonth(), today.getDate());
   const initialMonth = today.getFullYear() === year ? today.getMonth() : 0;
@@ -139,7 +143,7 @@ export function CalendarView({ schedule, today }: { schedule: ScheduleData; toda
         >
           <Text style={styles.arrowTxt}>‹</Text>
         </Pressable>
-        <Text style={styles.title}>{monthTitle(month, year)}</Text>
+        <Text style={styles.title}>{monthTitle(month, year, lang)}</Text>
         <Pressable
           onPress={() => go(1)} disabled={month === 11}
           style={({ pressed }) => [styles.arrow, month === 11 && styles.arrowOff, pressed && styles.pressed]}
@@ -151,8 +155,8 @@ export function CalendarView({ schedule, today }: { schedule: ScheduleData; toda
 
       <Animated.View style={[styles.card, { transform: [{ translateX: slide }] }]} {...pan.panHandlers}>
         <View style={styles.weekRow}>
-          {WEEKDAYS_SHORT.map((w, i) => (
-            <Text key={w} style={[styles.weekday, i >= 5 && styles.weekendHead]}>{w}</Text>
+          {weekdaysShortNames.map((w, i) => (
+            <Text key={i} style={[styles.weekday, i >= 5 && styles.weekendHead]}>{w}</Text>
           ))}
         </View>
         {rows.map((row, ri) => (
@@ -164,33 +168,37 @@ export function CalendarView({ schedule, today }: { schedule: ScheduleData; toda
                 weekend={ci >= 5}
                 selected={c.inMonth && c.iso === selected}
                 onPress={() => setSelected(c.iso)}
+                styles={styles}
               />
             ))}
           </View>
         ))}
       </Animated.View>
 
-      <Text style={styles.hint}>Przesuń w lewo / prawo, aby zmienić miesiąc</Text>
+      <Text style={styles.hint}>{t('cal.hint')}</Text>
 
-      {selected && (
-        <View style={styles.detail}>
-          {selectedTypes.length > 0 ? (
-            <>
-              <Text style={styles.detailDate}>{selectedDate ? weekdayDate(selectedDate) : ''}</Text>
-              {selectedTypes.map((t) => (
-                <View key={t} style={styles.detailRow}>
-                  <WasteDot type={t} size={12} />
-                  <Text style={styles.detailLabel}>{WASTE_TYPES[t].label}</Text>
-                </View>
-              ))}
-            </>
-          ) : (
-            <Text style={styles.detailEmpty}>
-              {selectedDate ? weekdayDate(selectedDate) : ''} — brak wywozu
-            </Text>
-          )}
-        </View>
-      )}
+      {/* Stała wysokość slotu — żeby wybór dnia nie zmieniał układu (kalendarz nie skacze). */}
+      <View style={styles.detailSlot}>
+        {selected && (
+          <View style={styles.detail}>
+            {selectedTypes.length > 0 ? (
+              <>
+                <Text style={styles.detailDate}>{selectedDate ? weekdayDate(selectedDate, lang) : ''}</Text>
+                {selectedTypes.map((ty) => (
+                  <View key={ty} style={styles.detailRow}>
+                    <WasteDot type={ty} size={12} />
+                    <Text style={styles.detailLabel}>{t(`waste.${ty}`)}</Text>
+                  </View>
+                ))}
+              </>
+            ) : (
+              <Text style={styles.detailEmpty}>
+                {t('cal.noPickup', { date: selectedDate ? weekdayDate(selectedDate, lang) : '' })}
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
 
       <View style={styles.legendBox}>
         <Legend />
@@ -201,27 +209,28 @@ export function CalendarView({ schedule, today }: { schedule: ScheduleData; toda
 
 const SQUARE = 38;
 
-const styles = StyleSheet.create({
-  scroll: { padding: 14, paddingBottom: 28 },
+const makeStyles = (c: Theme) => StyleSheet.create({
+  // flexGrow + justifyContent: 'center' → kalendarz wyśrodkowany pionowo na ekranie.
+  scroll: { padding: 14, paddingBottom: 28, flexGrow: 1, justifyContent: 'center' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: 12, paddingHorizontal: 4,
   },
-  title: { fontSize: 21, fontWeight: '700', color: theme.text },
+  title: { fontSize: 21, fontWeight: '700', color: c.text },
   arrow: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: theme.card,
+    width: 40, height: 40, borderRadius: 20, backgroundColor: c.card,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 2,
+    shadowColor: c.shadow, shadowOpacity: 1, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
   arrowOff: { opacity: 0.35 },
   pressed: { opacity: 0.6 },
-  arrowTxt: { fontSize: 26, lineHeight: 30, color: theme.text, fontWeight: '600' },
+  arrowTxt: { fontSize: 26, lineHeight: 30, color: c.text, fontWeight: '600' },
   card: {
-    backgroundColor: theme.card, borderRadius: 18, padding: 8,
-    shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3,
+    backgroundColor: c.card, borderRadius: 18, padding: 8,
+    shadowColor: c.shadow, shadowOpacity: 1, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
   weekRow: { flexDirection: 'row', marginBottom: 4, paddingTop: 4 },
-  weekday: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: theme.textMuted },
+  weekday: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: c.textMuted },
   weekendHead: { color: '#C0504D' },
   row: { flexDirection: 'row' },
   cell: { flex: 1, alignItems: 'center', paddingVertical: 4 },
@@ -230,26 +239,28 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent',
   },
   stripes: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' },
+  // Lekki highlight/glow z tyłu dnia dzisiejszego; tło kratki pozostaje przezroczyste.
   todayHalo: {
-    padding: 3, borderRadius: 9, backgroundColor: 'rgba(255,202,40,0.32)',
-    shadowColor: '#F9A825', shadowOpacity: 0.95, shadowRadius: 7, shadowOffset: { width: 0, height: 0 },
-    elevation: 8,
+    padding: 3, borderRadius: 9, backgroundColor: c.todayGlow,
+    shadowColor: c.todayBorder, shadowOpacity: 0.4, shadowRadius: 6, shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
   },
-  todayBorder: { borderWidth: 2, borderColor: '#F9A825' },
-  selRing: { borderWidth: 1.5, borderColor: theme.textMuted },
-  dayNum: { fontSize: 15, color: theme.text },
+  // Czarna (jasny motyw) / jasna (ciemny) ramka 2px.
+  todayBorder: { borderWidth: 2, borderColor: c.todayBorder },
+  selRing: { borderWidth: 1.5, borderColor: c.textMuted },
+  dayNum: { fontSize: 15, color: c.text },
   dayOut: { color: 'transparent' },
   dayWeekend: { color: '#C0504D' },
   dayPickup: { color: '#FFFFFF', fontWeight: '800' },
-  dayTodayPlain: { fontWeight: '800', color: theme.primary },
-  hint: { textAlign: 'center', color: theme.textFaint, fontSize: 12, marginTop: 10 },
+  hint: { textAlign: 'center', color: c.textFaint, fontSize: 12, marginTop: 10 },
+  detailSlot: { minHeight: 130, marginTop: 12 },
   detail: {
-    backgroundColor: theme.card, borderRadius: 14, padding: 14, marginTop: 12,
-    shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2,
+    backgroundColor: c.card, borderRadius: 14, padding: 14,
+    shadowColor: c.shadow, shadowOpacity: 1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  detailDate: { fontSize: 13, fontWeight: '700', color: theme.textMuted, marginBottom: 8, textTransform: 'capitalize' },
+  detailDate: { fontSize: 13, fontWeight: '700', color: c.textMuted, marginBottom: 8, textTransform: 'capitalize' },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 3 },
-  detailLabel: { fontSize: 15, color: theme.text },
-  detailEmpty: { fontSize: 14, color: theme.textMuted, textTransform: 'capitalize' },
+  detailLabel: { fontSize: 15, color: c.text },
+  detailEmpty: { fontSize: 14, color: c.textMuted, textTransform: 'capitalize' },
   legendBox: { marginTop: 18 },
 });

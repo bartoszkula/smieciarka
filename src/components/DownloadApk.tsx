@@ -1,7 +1,7 @@
 import React from 'react';
 import { Platform, Pressable, Text, StyleSheet, Linking, View } from 'react-native';
 import { APK_URL } from '../config';
-import { theme } from '../theme';
+import { usePrefs } from '../prefs';
 
 /** Czy jesteśmy w przeglądarce na Androidzie (widok mobilny web). */
 export function isAndroidWeb(): boolean {
@@ -19,25 +19,27 @@ function openApk() {
 
 /** Pasek zachęcający do pobrania APK — pokazywany TYLKO w mobilnym widoku web (Android). */
 export function DownloadApkBanner() {
+  const { t } = usePrefs();
   if (!isAndroidWeb()) return null;
   return (
     <Pressable style={({ pressed }) => [styles.banner, pressed && styles.pressed]} onPress={openApk}>
       <Text style={styles.icon}>📲</Text>
       <View style={{ flex: 1 }}>
-        <Text style={styles.title}>Pobierz aplikację na Androida</Text>
-        <Text style={styles.sub}>Powiadomienia push działają tylko w aplikacji.</Text>
+        <Text style={styles.title}>{t('download.bannerTitle')}</Text>
+        <Text style={styles.sub}>{t('download.bannerSub')}</Text>
       </View>
-      <Text style={styles.cta}>Pobierz</Text>
+      <Text style={styles.cta}>{t('download.cta')}</Text>
     </Pressable>
   );
 }
 
 /** Wariant przycisku do ekranu „Więcej" (też tylko mobilny web). */
 export function DownloadApkButton() {
+  const { t } = usePrefs();
   if (!isAndroidWeb()) return null;
   return (
     <Pressable style={({ pressed }) => [styles.btn, pressed && styles.pressed]} onPress={openApk}>
-      <Text style={styles.btnTxt}>📲 Pobierz aplikację na Androida (.apk)</Text>
+      <Text style={styles.btnTxt}>{t('download.btn')}</Text>
     </Pressable>
   );
 }

@@ -2,9 +2,10 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import {
-  WASTE_TYPES, WasteTypeId, PickupDay,
+  WasteTypeId, PickupDay,
 } from './data/schedule';
-import { MONTHS_PL_GEN } from './utils/format';
+import { monthLong } from './utils/format';
+import { Lang, DEFAULT_LANG, t as tr } from './i18n';
 
 // Godzina powiadomienia: 18:00 dnia POPRZEDZAJĄCEGO wywóz.
 const NOTIFY_HOUR = 18;
@@ -22,14 +23,14 @@ Notifications.setNotificationHandler({
 
 export const notificationsSupported = Platform.OS !== 'web';
 
-function typesText(types: WasteTypeId[]): string {
-  return types.map((t) => WASTE_TYPES[t].label).join(', ');
+function typesText(types: WasteTypeId[], lang: Lang): string {
+  return types.map((ty) => tr(lang, `waste.${ty}`)).join(', ');
 }
 
-function body(day: PickupDay): string {
-  const base = `Jutro odbierają: ${typesText(day.types)}. Wystaw pojemniki przed dom do 6:00 rano.`;
+function body(day: PickupDay, lang: Lang): string {
+  const base = tr(lang, 'notif.pushBody', { types: typesText(day.types, lang) });
   if (day.types.includes('gabaryty')) {
-    return `${base} Gabaryty można wystawić już dziś od 19:00.`;
+    return `${base} ${tr(lang, 'notif.pushBulky')}`;
   }
   return base;
 }
@@ -71,7 +72,7 @@ export interface ScheduleResult {
  * Kasuje wcześniejsze i planuje powiadomienia dla wszystkich przyszłych
  * dni wywozu (jedno powiadomienie na dzień, o 18:00 dnia poprzedniego).
  */
-export async function rescheduleAll(now: Date, days: PickupDay[]): Promise<ScheduleResult> {
+export async function rescheduleAll(now: Date, days: PickupDay[], lang: Lang = DEFAULT_LANG): Promise<ScheduleResult> {
   if (!notificationsSupported) return { scheduled: 0, granted: false };
   const granted = await requestPermissions();
   if (!granted) return { scheduled: 0, granted: false };
@@ -88,8 +89,8 @@ export async function rescheduleAll(now: Date, days: PickupDay[]): Promise<Sched
     const d = day.dateObj;
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '🗑️ Jutro wywóz śmieci',
-        body: body(day),
+        title: tr(lang, 'notif.pushTitle'),
+        body: body(day, lang),
         ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL } : {}),
         data: { date: day.date },
       },
@@ -105,17 +106,20 @@ export async function rescheduleAll(now: Date, days: PickupDay[]): Promise<Sched
 }
 
 /** Powiadomienie testowe — pojawi się za kilka sekund. */
-export async function sendTestNotification(days: PickupDay[]): Promise<boolean> {
+export async function sendTestNotification(days: PickupDay[], lang: Lang = DEFAULT_LANG): Promise<boolean> {
   if (!notificationsSupported) return false;
   const granted = await requestPermissions();
   if (!granted) return false;
   const sample = days[0];
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: '🗑️ Test powiadomienia',
+      title: tr(lang, 'notif.testTitle'),
       body: sample
-        ? `Tak będzie wyglądać przypomnienie. Np. ${sample.dateObj.getDate()} ${MONTHS_PL_GEN[sample.dateObj.getMonth()]}: ${typesText(sample.types)}.`
-        : 'Powiadomienia działają!',
+        ? tr(lang, 'notif.testBody', {
+          date: `${sample.dateObj.getDate()} ${monthLong(sample.dateObj.getMonth(), lang)}`,
+          types: typesText(sample.types, lang),
+        })
+        : tr(lang, 'notif.testWorks'),
       ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL } : {}),
     },
     trigger: {

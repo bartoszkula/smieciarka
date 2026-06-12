@@ -1,23 +1,26 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { WASTE_TYPES, WASTE_TYPE_ORDER } from '../data/schedule';
+import { WASTE_TYPE_ORDER } from '../data/schedule';
 import { WasteDot } from './WasteDot';
-import { theme } from '../theme';
+import { usePrefs } from '../prefs';
+import { Theme } from '../theme';
 
 export function Legend() {
+  const { palette, t } = usePrefs();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View style={styles.wrap}>
       {WASTE_TYPE_ORDER.map((id) => (
         <View key={id} style={styles.item}>
           <WasteDot type={id} size={11} />
-          <Text style={styles.label}>{WASTE_TYPES[id].short}</Text>
+          <Text style={styles.label}>{t(`wasteShort.${id}`)}</Text>
         </View>
       ))}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: Theme) => StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -26,5 +29,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   item: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  label: { fontSize: 12, color: theme.textMuted },
+  label: { fontSize: 12, color: c.textMuted },
 });
