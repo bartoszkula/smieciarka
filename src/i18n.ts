@@ -609,8 +609,23 @@ const COVERAGE_STRINGS: Record<Lang, Dict> = {
   nb: { 'more.coverage': 'Dekning', 'coverage.covered': 'Dekket', 'coverage.planned': 'Snart', 'coverage.note': 'Vi dekker for øyeblikket Bydgoszcz. Målet er Polens 10 største byer.' },
 };
 
+// Zakładka „Ustawienia" (dawniej „Więcej").
+const TAB_STRINGS: Record<Lang, Dict> = {
+  pl: { 'tab.settings': 'Ustawienia' },
+  uk: { 'tab.settings': 'Налаштування' },
+  be: { 'tab.settings': 'Налады' },
+  lt: { 'tab.settings': 'Nustatymai' },
+  ru: { 'tab.settings': 'Настройки' },
+  en: { 'tab.settings': 'Settings' },
+  de: { 'tab.settings': 'Einstellungen' },
+  fr: { 'tab.settings': 'Paramètres' },
+  it: { 'tab.settings': 'Impostazioni' },
+  sv: { 'tab.settings': 'Inställningar' },
+  nb: { 'tab.settings': 'Innstillinger' },
+};
+
 for (const code of Object.keys(STRINGS) as Lang[]) {
-  Object.assign(STRINGS[code], NOTIF_STRINGS[code], COVERAGE_STRINGS[code]);
+  Object.assign(STRINGS[code], NOTIF_STRINGS[code], COVERAGE_STRINGS[code], TAB_STRINGS[code]);
 }
 
 export function t(lang: Lang, key: string, params?: Record<string, string | number>): string {

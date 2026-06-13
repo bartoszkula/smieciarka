@@ -37,7 +37,7 @@ type Tab = 'kalendarz' | 'lista' | 'wiecej';
 const TABS: { id: Tab; labelKey: string; icon: string }[] = [
   { id: 'kalendarz', labelKey: 'tab.calendar', icon: '📅' },
   { id: 'lista', labelKey: 'tab.list', icon: '📋' },
-  { id: 'wiecej', labelKey: 'tab.more', icon: '⚙️' },
+  { id: 'wiecej', labelKey: 'tab.settings', icon: '⚙️' },
 ];
 
 // Status powiadomień jako klucz tłumaczenia + parametry (lokalizowany przy renderze).
@@ -330,8 +330,8 @@ const makeStyles = (c: Theme) => StyleSheet.create({
     flexDirection: 'row', backgroundColor: c.card, borderTopWidth: 1, borderTopColor: c.border,
     paddingBottom: BOTTOM_PAD, paddingTop: 10,
   },
-  // Ikony menu przesunięte o 10px do góry.
-  tab: { flex: 1, alignItems: 'center', gap: 2, transform: [{ translateY: -10 }] },
+  // 10px paddingu nad elementami menu.
+  tab: { flex: 1, alignItems: 'center', gap: 2, paddingTop: 10 },
   tabIcon: { fontSize: 20, opacity: 0.45 },
   tabIconActive: { opacity: 1 },
   tabLabel: { fontSize: 11, color: c.textMuted },

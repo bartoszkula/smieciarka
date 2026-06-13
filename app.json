@@ -6,6 +6,13 @@
     "orientation": "portrait",
     "icon": "./assets/smieciarka.png",
     "userInterfaceStyle": "light",
+    "runtimeVersion": "1",
+    "updates": {
+      "enabled": true,
+      "url": "https://smieci-ruby.vercel.app/updates/manifest",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "supportsTablet": true,
       "icon": "./assets/smieciarka.png"

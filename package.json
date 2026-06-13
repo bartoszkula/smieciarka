@@ -14,6 +14,7 @@
     "expo-notifications": "~56.0.17",
     "expo-sharing": "~56.0.17",
     "expo-status-bar": "~56.0.4",
+    "expo-updates": "~56.0.19",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
@@ -28,7 +29,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "ota": "node scripts/build-ota.mjs"
   },
   "private": true
 }

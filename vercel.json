@@ -3,7 +3,18 @@
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
   "framework": null,
+  "headers": [
+    {
+      "source": "/updates/manifest",
+      "headers": [
+        { "key": "content-type", "value": "multipart/mixed; boundary=expo-bound" },
+        { "key": "expo-protocol-version", "value": "1" },
+        { "key": "expo-sfv-version", "value": "0" },
+        { "key": "cache-control", "value": "no-store, max-age=0" }
+      ]
+    }
+  ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!updates/).*)", "destination": "/index.html" }
   ]
 }

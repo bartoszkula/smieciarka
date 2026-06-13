@@ -1,0 +1,6 @@
+--expo-bound
+Content-Disposition: form-data; name="manifest"
+Content-Type: application/json
+
+{"id":"fb90103f-b392-471f-8629-61e5a3cb5229","createdAt":"2026-06-12T14:31:51.167Z","runtimeVersion":"1","launchAsset":{"hash":"UzPrI9AYEFSKeUYaT9W1iN-JdnTkf4sBGfCOCbbaGUk","key":"048d2871fe7823af309ae7111e17da69","contentType":"application/javascript","url":"https://smieci-ruby.vercel.app/updates/fb90103f-b392-471f-8629-61e5a3cb5229/_expo/static/js/android/index-72b6d73f659b33183ed3e192f6b8c9cc.hbc"},"assets":[{"hash":"QfzjxhbuL3Gy1gdd6-H_Hlxwb-CJxRHQTd2gPeGYU74","key":"e82f8c1b648b96a7b7669a9025b4b16d","contentType":"image/png","fileExtension":".png","url":"https://smieci-ruby.vercel.app/updates/fb90103f-b392-471f-8629-61e5a3cb5229/assets/e82f8c1b648b96a7b7669a9025b4b16d"}],"metadata":{},"extra":{}}
+--expo-bound--
